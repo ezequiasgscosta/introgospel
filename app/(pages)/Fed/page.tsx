@@ -33,7 +33,7 @@ export default function Fed() {
     }, [])
 
     return (
-        <div className="w-[100vw] min-h-[100vh] bg-red-400 p-8">
+        <div className="w-[100dvw] min-h-[100dvh] bg-red-400 p-8">
             <h1 className="text-3xl font-bold mb-6">
                 Minhas músicas
             </h1>
