@@ -9,15 +9,15 @@ export default function NavBar() {
             <Link href="/" className="hover:underline">
         inicio
             </Link>
-           <Link href="/./pages/Fed" className="hover:underline">
+           <Link href="/./Fed" className="hover:underline">
                 fed
              </Link>
 
-              <Link href="/./pages/cadastro" className="hover:underline">
+              <Link href="/./cadastro" className="hover:underline">
                 Cadastro
              </Link>
 
-             <Link href="/./pages/criacao" className="hover:underline">
+             <Link href="/./criacao" className="hover:underline">
                 Criação
              </Link>
             
