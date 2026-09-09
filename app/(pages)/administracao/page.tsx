@@ -1,8 +1,10 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { supabase } from "@/supabaseClient"
 import Link from "next/link"
+import { usuarioPodeGerenciar } from "@/app/lib/autorizacao"
 
 // Interfaces
 interface Usuario {
@@ -34,6 +36,7 @@ interface Feedback {
 }
 
 export default function PainelAdmin() {
+  const router = useRouter()
   const [abaAtiva, setAbaAtiva] = useState<"musicas" | "usuarios">("musicas")
 
   // Estados para Músicas
@@ -46,18 +49,7 @@ export default function PainelAdmin() {
 
   const [carregando, setCarregando] = useState(true)
   const [feedback, setFeedback] = useState<Feedback | null>(null)
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/immutability
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-    carregarDados()
-  }, [])
-
-  async function carregarDados() {
-    setCarregando(true)
-    await Promise.all([buscarMusicas(), buscarUsuarios()])
-    setCarregando(false)
-  }
+  const [autorizado, setAutorizado] = useState(false)
 
   // =========================
   // FUNÇÕES DE MÚSICAS
@@ -114,6 +106,28 @@ export default function PainelAdmin() {
     } catch (err) {
       console.error("Erro inesperado ao buscar usuários:", err)
     }
+  }
+
+  useEffect(() => {
+    async function verificarAcesso() {
+      const acesso = await usuarioPodeGerenciar()
+
+      if (acesso !== "permitido") {
+        router.replace(acesso === "nao-autenticado" ? "/login" : "/Fed")
+        return
+      }
+
+      setAutorizado(true)
+      setCarregando(true)
+      await Promise.all([buscarMusicas(), buscarUsuarios()])
+      setCarregando(false)
+    }
+
+    verificarAcesso()
+  }, [router])
+
+  if (!autorizado) {
+    return null
   }
 
   const alterarPermissaoUsuario = async (id: string, novaRole: "ADM" | "USER") => {

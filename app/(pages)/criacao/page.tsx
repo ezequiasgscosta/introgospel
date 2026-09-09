@@ -1,7 +1,9 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { supabase } from "@/supabaseClient"
+import { usuarioPodeGerenciar } from "@/app/lib/autorizacao"
 
 interface BlocoCifra {
   esquerda: string
@@ -47,6 +49,7 @@ const camposHarmonicos: Record<string, string[]> = {
 }
 
 export default function Criacao() {
+  const router = useRouter()
   const notasCromaticas: string[] = [
     "C",
     "C#",
@@ -88,17 +91,27 @@ export default function Criacao() {
   const [feedback, setFeedback] = useState<Feedback | null>(null)
   const [idEmEdicao, setIdEmEdicao] = useState<number | null>(null)
   const [carregandoEdicao, setCarregandoEdicao] = useState(false)
+  const [autorizado, setAutorizado] = useState(false)
 
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get("editar")
-    if (!id) return
+    async function verificarAcesso() {
+      const acesso = await usuarioPodeGerenciar()
 
-    const idNumerico = Number(id)
-    if (!Number.isInteger(idNumerico)) {
-      return
-    }
+      if (acesso !== "permitido") {
+        router.replace(acesso === "nao-autenticado" ? "/login" : "/Fed")
+        return
+      }
 
-    async function carregarMusica() {
+      setAutorizado(true)
+
+      const id = new URLSearchParams(window.location.search).get("editar")
+      if (!id) return
+
+      const idNumerico = Number(id)
+      if (!Number.isInteger(idNumerico)) {
+        return
+      }
+
       setCarregandoEdicao(true)
       const { data, error } = await supabase
         .from("musicas")
@@ -118,8 +131,12 @@ export default function Criacao() {
       setCarregandoEdicao(false)
     }
 
-    carregarMusica()
-  }, [])
+    verificarAcesso()
+  }, [router])
+
+  if (!autorizado) {
+    return null
+  }
 
   // =========================
   // BOTÕES DAS NOTAS
