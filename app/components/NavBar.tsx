@@ -13,13 +13,14 @@ export default function NavBar() {
                 fed
              </Link>
 
-              <Link href="/./cadastro" className="hover:underline">
-                Cadastro
-             </Link>
-
              <Link href="/./criacao" className="hover:underline">
                 Criação
              </Link>
+
+              <Link href="/./administracao" className="hover:underline">
+                Administração
+             </Link>
+
             
         </div>
     </div>
