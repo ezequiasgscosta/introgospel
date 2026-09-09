@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { supabase } from "@/supabaseClient"
 
 interface BlocoCifra {
@@ -16,6 +16,19 @@ interface ItemEdicao {
   indexLinha: number
   indexBloco: number
   mao: "esquerda" | "direita"
+}
+
+interface Feedback {
+  tipo: "erro" | "sucesso"
+  mensagem: string
+}
+
+interface MusicaEdicao {
+  id: number
+  nome_da_musica: string
+  nome_do_cantor: string
+  tom: string | null
+  linha: LinhaCifra[] | null
 }
 
 const camposHarmonicos: Record<string, string[]> = {
@@ -72,6 +85,41 @@ export default function Criacao() {
   const [textoEdicao, setTextoEdicao] = useState<string>("")
 
   const [salvando, setSalvando] = useState(false)
+  const [feedback, setFeedback] = useState<Feedback | null>(null)
+  const [idEmEdicao, setIdEmEdicao] = useState<number | null>(null)
+  const [carregandoEdicao, setCarregandoEdicao] = useState(false)
+
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("editar")
+    if (!id) return
+
+    const idNumerico = Number(id)
+    if (!Number.isInteger(idNumerico)) {
+      return
+    }
+
+    async function carregarMusica() {
+      setCarregandoEdicao(true)
+      const { data, error } = await supabase
+        .from("musicas")
+        .select("id, nome_da_musica, nome_do_cantor, tom, linha")
+        .eq("id", idNumerico)
+        .single<MusicaEdicao>()
+
+      if (error || !data) {
+        setFeedback({ tipo: "erro", mensagem: error?.message || "Música não encontrada." })
+      } else {
+        setIdEmEdicao(data.id)
+        setTitulo(data.nome_da_musica || "")
+        setCantor(data.nome_do_cantor || "")
+        setTomSelecionado(data.tom || "C")
+        setLinhas(data.linha && data.linha.length > 0 ? data.linha : [{ blocos: [] }])
+      }
+      setCarregandoEdicao(false)
+    }
+
+    carregarMusica()
+  }, [])
 
   // =========================
   // BOTÕES DAS NOTAS
@@ -87,15 +135,17 @@ export default function Criacao() {
   // =========================
 
   const salvarCifra = async () => {
+    setFeedback(null)
+
     // Verifica nome da música
     if (!titulo.trim()) {
-      alert("Digite o nome da música.")
+      setFeedback({ tipo: "erro", mensagem: "Digite o nome da música." })
       return
     }
 
     // Verifica cantor
     if (!cantor.trim()) {
-      alert("Digite o nome do cantor.")
+      setFeedback({ tipo: "erro", mensagem: "Digite o nome do cantor." })
       return
     }
 
@@ -105,45 +155,40 @@ export default function Criacao() {
     )
 
     if (cifraVazia) {
-      alert("A cifra está vazia.")
+      setFeedback({ tipo: "erro", mensagem: "A cifra está vazia." })
       return
     }
 
     try {
       setSalvando(true)
 
-      const { data, error } = await supabase
-        .from("musicas")
-        .insert({
-          nome_da_musica: titulo.trim(),
-          nome_do_cantor: cantor.trim(),
-          tom: tomSelecionado,
-          linha: linhas,
-        })
-        .select()
-        .single()
+      const dadosMusica = {
+        nome_da_musica: titulo.trim(),
+        nome_do_cantor: cantor.trim(),
+        tom: tomSelecionado,
+        linha: linhas,
+      }
+
+      const consulta = idEmEdicao
+        ? supabase.from("musicas").update(dadosMusica).eq("id", idEmEdicao).select().single()
+        : supabase.from("musicas").insert(dadosMusica).select().single()
+
+      const { data, error } = await consulta
 
       if (error) {
         console.error("Erro do Supabase:", error)
-
-        alert(
-          "Erro ao salvar a música:\n\n" +
-            error.message
-        )
-
+        setFeedback({ tipo: "erro", mensagem: "Erro ao " + (idEmEdicao ? "atualizar" : "salvar") + " a música: " + error.message })
         return
       }
 
       console.log("Música salva com sucesso:", data)
 
-      alert("🎵 Cifra salva com sucesso!")
+      setFeedback({ tipo: "sucesso", mensagem: idEmEdicao ? "Cifra atualizada com sucesso!" : "Cifra salva com sucesso!" })
 
     } catch (error) {
       console.error("Erro inesperado:", error)
 
-      alert(
-        "Ocorreu um erro inesperado ao salvar a cifra."
-      )
+      setFeedback({ tipo: "erro", mensagem: "Ocorreu um erro inesperado ao " + (idEmEdicao ? "atualizar" : "salvar") + " a cifra." })
     } finally {
       setSalvando(false)
     }
@@ -412,6 +457,25 @@ export default function Criacao() {
   return (
     <div className="h-[100dvh] bg-gray-900 text-white flex flex-col items-center p-4 font-sans overflow-hidden">
 
+      {carregandoEdicao && (
+        <div className="w-full max-w-[700px] mb-3 rounded-lg border border-blue-800 bg-blue-950/50 px-4 py-3 text-sm text-blue-300">
+          Carregando cifra para edição...
+        </div>
+      )}
+
+      {feedback && (
+        <div
+          role="status"
+          className={`w-full max-w-[700px] mb-3 rounded-lg border px-4 py-3 text-sm ${
+            feedback.tipo === "erro"
+              ? "border-red-800 bg-red-950/50 text-red-300"
+              : "border-green-800 bg-green-950/50 text-green-300"
+          }`}
+        >
+          {feedback.mensagem}
+        </div>
+      )}
+
       {/* =========================
           INFORMAÇÕES DA MÚSICA
       ========================= */}
@@ -546,8 +610,8 @@ export default function Criacao() {
             }`}
           >
             {salvando
-              ? "⏳ Salvando..."
-              : "💾 Salvar"}
+              ? idEmEdicao ? "⏳ Atualizando..." : "⏳ Salvando..."
+              : idEmEdicao ? "💾 Atualizar cifra" : "💾 Salvar"}
           </button>
 
         </div>

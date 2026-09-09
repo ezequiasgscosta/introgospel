@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { supabase } from "@/supabaseClient"
+import Link from "next/link"
 
 // Interfaces
 interface Usuario {
@@ -27,25 +28,32 @@ interface Musica {
   linha: LinhaCifra[]
 }
 
+interface Feedback {
+  tipo: "erro" | "sucesso"
+  mensagem: string
+}
+
 export default function PainelAdmin() {
   const [abaAtiva, setAbaAtiva] = useState<"musicas" | "usuarios">("musicas")
 
   // Estados para Músicas
   const [musicas, setMusicas] = useState<Musica[]>([])
   const [buscaMusica, setBuscaMusica] = useState("")
-  const [musicaEmEdicao, setMusicaEmEdicao] = useState<Musica | null>(null)
 
   // Estados para Usuários
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [buscaUsuario, setBuscaUsuario] = useState("")
 
   const [carregando, setCarregando] = useState(true)
+  const [feedback, setFeedback] = useState<Feedback | null>(null)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/immutability
+  // eslint-disable-next-line react-hooks/exhaustive-deps
     carregarDados()
   }, [])
 
-  const carregarDados = async () => {
+  async function carregarDados() {
     setCarregando(true)
     await Promise.all([buscarMusicas(), buscarUsuarios()])
     setCarregando(false)
@@ -64,7 +72,7 @@ export default function PainelAdmin() {
 
       if (error) {
         console.error("Erro do Supabase ao carregar músicas:", error.message)
-        alert(`Erro ao buscar músicas: ${error.message}`)
+        setFeedback({ tipo: "erro", mensagem: `Erro ao buscar músicas: ${error.message}` })
       } else {
         setMusicas(data || [])
       }
@@ -80,40 +88,13 @@ export default function PainelAdmin() {
       const { error } = await supabase.from("musicas").delete().eq("id", id)
 
       if (error) {
-        alert("Erro ao excluir música: " + error.message)
+        setFeedback({ tipo: "erro", mensagem: "Erro ao excluir música: " + error.message })
       } else {
         setMusicas((prev) => prev.filter((m) => m.id !== id))
-        alert("Música excluída com sucesso!")
+        setFeedback({ tipo: "sucesso", mensagem: "Música excluída com sucesso!" })
       }
     } catch (err) {
       console.error("Erro de rede ao excluir música:", err)
-    }
-  }
-
-  const salvarEdicaoMusica = async () => {
-    if (!musicaEmEdicao) return
-
-    try {
-      const { error } = await supabase
-        .from("musicas")
-        .update({
-          nome_da_musica: musicaEmEdicao.nome_da_musica,
-          nome_do_cantor: musicaEmEdicao.nome_do_cantor,
-          tom: musicaEmEdicao.tom,
-        })
-        .eq("id", musicaEmEdicao.id)
-
-      if (error) {
-        alert("Erro ao atualizar música: " + error.message)
-      } else {
-        setMusicas((prev) =>
-          prev.map((m) => (m.id === musicaEmEdicao.id ? musicaEmEdicao : m))
-        )
-        setMusicaEmEdicao(null)
-        alert("Música atualizada com sucesso!")
-      }
-    } catch (err) {
-      console.error("Erro de rede ao editar música:", err)
     }
   }
 
@@ -143,12 +124,12 @@ export default function PainelAdmin() {
         .eq("id", id)
 
       if (error) {
-        alert("Erro ao alterar permissão: " + error.message)
+        setFeedback({ tipo: "erro", mensagem: "Erro ao alterar permissão: " + error.message })
       } else {
         setUsuarios((prev) =>
           prev.map((u) => (u.id === id ? { ...u, role: novaRole } : u))
         )
-        alert("Permissão atualizada com sucesso!")
+        setFeedback({ tipo: "sucesso", mensagem: "Permissão atualizada com sucesso!" })
       }
     } catch (err) {
       console.error("Erro de rede ao atualizar permissão:", err)
@@ -169,6 +150,19 @@ export default function PainelAdmin() {
   return (
     <div className="min-h-screen bg-gray-950 text-white p-4 sm:p-8 font-sans">
       <div className="max-w-6xl mx-auto">
+        {feedback && (
+          <div
+            role="status"
+            className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
+              feedback.tipo === "erro"
+                ? "border-red-800 bg-red-950/50 text-red-300"
+                : "border-green-800 bg-green-950/50 text-green-300"
+            }`}
+          >
+            {feedback.mensagem}
+          </div>
+        )}
+
         <header className="mb-6 border-b border-gray-800 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-2xl font-bold text-blue-400">⚙️ Painel Administrativo</h1>
@@ -245,12 +239,12 @@ export default function PainelAdmin() {
                               </span>
                             </td>
                             <td className="p-4 text-right space-x-2">
-                              <button
-                                onClick={() => setMusicaEmEdicao(musica)}
+                              <Link
+                                href={`/criacao?editar=${musica.id}`}
                                 className="px-3 py-1 bg-amber-600/20 hover:bg-amber-600/40 text-amber-400 border border-amber-600/30 rounded text-xs font-semibold transition"
                               >
                                 ✏️ Editar
-                              </button>
+                              </Link>
                               <button
                                 onClick={() => excluirMusica(musica.id)}
                                 className="px-3 py-1 bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-600/30 rounded text-xs font-semibold transition"
@@ -347,79 +341,6 @@ export default function PainelAdmin() {
           </>
         )}
       </div>
-
-      {/* MODAL DE EDIÇÃO DE MÚSICA */}
-      {musicaEmEdicao && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 border border-gray-800 p-6 rounded-xl max-w-md w-full shadow-2xl space-y-4">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              ✏️ Editar Informações da Música
-            </h2>
-
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-semibold text-gray-400">Nome da Música</label>
-                <input
-                  type="text"
-                  value={musicaEmEdicao.nome_da_musica}
-                  onChange={(e) =>
-                    setMusicaEmEdicao({
-                      ...musicaEmEdicao,
-                      nome_da_musica: e.target.value,
-                    })
-                  }
-                  className="w-full bg-gray-950 border border-gray-700 rounded p-2 text-sm text-white focus:outline-none focus:border-blue-500 mt-1"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-gray-400">Nome do Cantor</label>
-                <input
-                  type="text"
-                  value={musicaEmEdicao.nome_do_cantor}
-                  onChange={(e) =>
-                    setMusicaEmEdicao({
-                      ...musicaEmEdicao,
-                      nome_do_cantor: e.target.value,
-                    })
-                  }
-                  className="w-full bg-gray-950 border border-gray-700 rounded p-2 text-sm text-white focus:outline-none focus:border-blue-500 mt-1"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-gray-400">Tom Original</label>
-                <input
-                  type="text"
-                  value={musicaEmEdicao.tom}
-                  onChange={(e) =>
-                    setMusicaEmEdicao({
-                      ...musicaEmEdicao,
-                      tom: e.target.value,
-                    })
-                  }
-                  className="w-full bg-gray-950 border border-gray-700 rounded p-2 text-sm text-white font-mono focus:outline-none focus:border-blue-500 mt-1"
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-2 justify-end pt-2">
-              <button
-                onClick={() => setMusicaEmEdicao(null)}
-                className="px-4 py-2 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg font-semibold transition"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={salvarEdicaoMusica}
-                className="px-4 py-2 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold transition shadow"
-              >
-                Salvar Alterações
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
